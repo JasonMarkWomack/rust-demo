@@ -1,21 +1,29 @@
+use std::error::Error;
+
 #[macro_use] extern crate rocket;
-use rocket::http::Status;
-use rocket::response::Redirect;
-use rocket::http::url::Orgin;
-use rocket::serde::json::(json, Value);
-#[get("/<name>/<age>")]
-fn index() -> Redirect {
-    Redirect::to(uri!(call_api()))
+use rocket::http::{Status};
+
+#[get("/assistant")]
+async fn get_assistant() -> Result<String, Status> {
+    let client = reqwest::Client::new();
+    let response = client
+        .get("https://west-api.vapi.ai/assistant")
+        .header("accept", "application/json")
+        .header("Authorization", "Bearer 2a911e1c-8e20-40c9-b953-e8b23aa5b030")
+        .send()
+        .await
+        .map_err(|_| Status::InternalServerError)?;
+
+    if response.status().is_success() {
+        let body = response.text().await.map_err(|_| Status::InternalServerError)?;
+        Ok(body)
+    } else {
+        Err(Status::from_code(response.status().as_u16()).unwrap_or(Status::InternalServerError))
+    }
 }
 
-//https://west-api.vapi.ai/assistant?limit=5
-#[get("https://west-api.vapi.ai/assistant")]
-fn call_api(_platfrom: &str){
-    Status::NoContent
-}
-#[launch]
-fn rocket() -> _ {
-    rocket::build()
-    .mount("/hello", routes![hello])
-    .mount("https://west-api.vapi.ai/assistant?limit=5", routes![call_api])
+#[rocket::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    rocket::build().mount("/", routes![get_assistant]).launch().await?;
+    Ok(())
 }
